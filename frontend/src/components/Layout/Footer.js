@@ -2,9 +2,27 @@ import React from 'react';
 
 const Footer = () => {
     return (
-        <footer className="bg-gray-800 text-white py-4">
-            <div className="max-w-7xl mx-auto px-4 text-center">
-                <p>&copy; 2024 Alumni Management System. All rights reserved.</p>
+        <footer className="bg-white shadow-inner mt-auto">
+            <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center">
+                    <div className="text-gray-500 text-sm">
+                        © {new Date().getFullYear()} Alumni Management System. All rights reserved.
+                    </div>
+                    <div className="flex space-x-6">
+                        <a href="#" className="text-gray-400 hover:text-gray-500">
+                            About
+                        </a>
+                        <a href="#" className="text-gray-400 hover:text-gray-500">
+                            Privacy
+                        </a>
+                        <a href="#" className="text-gray-400 hover:text-gray-500">
+                            Terms
+                        </a>
+                        <a href="#" className="text-gray-400 hover:text-gray-500">
+                            Contact
+                        </a>
+                    </div>
+                </div>
             </div>
         </footer>
     );
