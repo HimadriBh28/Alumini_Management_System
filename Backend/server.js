@@ -18,8 +18,14 @@ connectDB();
 
 const app = express();
 
+// CORS configuration - Allow frontend to connect
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+    optionsSuccessStatus: 200
+}));
+
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -43,10 +49,11 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Something went wrong!' });
 });
 
-// Start server
-const PORT = config.PORT;
+// Start server - use port from env or 5002 as fallback
+const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`MongoDB URI: ${process.env.MONGODB_URI || 'mongodb://localhost:27017/alumni_management'}`);
 });
 
 // Handle unhandled promise rejections

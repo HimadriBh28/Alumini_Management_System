@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { EnvelopeIcon, LockClosedIcon, UserIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
+import { UserIcon, EnvelopeIcon, LockClosedIcon, AcademicCapIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import { useTheme } from '../context/ThemeContext';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -14,7 +15,9 @@ const Register = () => {
         branch: ''
     });
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
     const { register } = useAuth();
+    const { isDark } = useTheme();
     const navigate = useNavigate();
 
     const handleChange = (e) => {
@@ -22,17 +25,24 @@ const Register = () => {
             ...formData,
             [e.target.name]: e.target.value
         });
+        setError('');
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
         if (formData.password !== formData.confirmPassword) {
-            alert('Passwords do not match');
+            setError('Passwords do not match!');
+            return;
+        }
+
+        if (formData.password.length < 6) {
+            setError('Password must be at least 6 characters long');
             return;
         }
 
         setLoading(true);
+        setError('');
         
         const result = await register({
             name: formData.name,
@@ -45,175 +55,220 @@ const Register = () => {
         
         if (result.success) {
             navigate('/dashboard');
+        } else {
+            setError(result.error || 'Registration failed. Please try again.');
         }
         
         setLoading(false);
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                        Create your account
+        <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+            <div className="max-w-2xl w-full bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-xl">
+                <div className="text-center mb-8">
+                    <h2 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-2">
+                        Create Account
                     </h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
-                        Or{' '}
-                        <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-                            sign in to existing account
-                        </Link>
+                    <p className="text-lg text-gray-600 dark:text-gray-400">
+                        Join our alumni community today
                     </p>
                 </div>
                 
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                                Full Name
+                {error && (
+                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                        <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                    </div>
+                )}
+                
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Full Name */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Full Name <span className="text-red-500">*</span>
                             </label>
-                            <div className="mt-1 relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <UserIcon className="h-5 w-5 text-gray-400" />
-                                </div>
+                            <div className="relative">
+                                <UserIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
                                 <input
-                                    id="name"
                                     name="name"
                                     type="text"
                                     required
                                     value={formData.name}
                                     onChange={handleChange}
-                                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                    className="pl-10 w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                                     placeholder="John Doe"
                                 />
                             </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                                Email address
+                        {/* Email */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Email Address <span className="text-red-500">*</span>
                             </label>
-                            <div className="mt-1 relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <EnvelopeIcon className="h-5 w-5 text-gray-400" />
-                                </div>
+                            <div className="relative">
+                                <EnvelopeIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
                                 <input
-                                    id="email"
                                     name="email"
                                     type="email"
-                                    autoComplete="email"
                                     required
                                     value={formData.email}
                                     onChange={handleChange}
-                                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                    className="pl-10 w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                                     placeholder="you@example.com"
                                 />
                             </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                                I am a
+                        {/* Role Selection */}
+                        <div className="col-span-2">
+                            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                I am a <span className="text-red-500">*</span>
                             </label>
-                            <select
-                                id="role"
-                                name="role"
-                                value={formData.role}
-                                onChange={handleChange}
-                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
-                            >
-                                <option value="student">Student</option>
-                                <option value="alumni">Alumni</option>
-                            </select>
+                            <div className="flex space-x-4">
+                                <label className={`flex-1 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                                    formData.role === 'student' 
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="role"
+                                        value="student"
+                                        checked={formData.role === 'student'}
+                                        onChange={handleChange}
+                                        className="hidden"
+                                    />
+                                    <div className="text-center">
+                                        <AcademicCapIcon className={`h-8 w-8 mx-auto mb-2 ${
+                                            formData.role === 'student' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'
+                                        }`} />
+                                        <span className={`font-medium ${
+                                            formData.role === 'student' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                                        }`}>Student</span>
+                                    </div>
+                                </label>
+                                
+                                <label className={`flex-1 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                                    formData.role === 'alumni' 
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="role"
+                                        value="alumni"
+                                        checked={formData.role === 'alumni'}
+                                        onChange={handleChange}
+                                        className="hidden"
+                                    />
+                                    <div className="text-center">
+                                        <UserIcon className={`h-8 w-8 mx-auto mb-2 ${
+                                            formData.role === 'alumni' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'
+                                        }`} />
+                                        <span className={`font-medium ${
+                                            formData.role === 'alumni' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                                        }`}>Alumni</span>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="branch" className="block text-sm font-medium text-gray-700">
+                        {/* Branch */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Branch/Department
                             </label>
-                            <div className="mt-1 relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <AcademicCapIcon className="h-5 w-5 text-gray-400" />
-                                </div>
+                            <input
+                                name="branch"
+                                type="text"
+                                value={formData.branch}
+                                onChange={handleChange}
+                                className="w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                placeholder="Computer Science"
+                            />
+                        </div>
+
+                        {/* Graduation Year */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Graduation Year
+                            </label>
+                            <div className="relative">
+                                <CalendarIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
                                 <input
-                                    id="branch"
-                                    name="branch"
-                                    type="text"
-                                    required
-                                    value={formData.branch}
+                                    name="graduationYear"
+                                    type="number"
+                                    value={formData.graduationYear}
                                     onChange={handleChange}
-                                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Computer Science"
+                                    className="pl-10 w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                    placeholder="2024"
                                 />
                             </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="graduationYear" className="block text-sm font-medium text-gray-700">
-                                Graduation Year
+                        {/* Password */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Password <span className="text-red-500">*</span>
                             </label>
-                            <input
-                                id="graduationYear"
-                                name="graduationYear"
-                                type="number"
-                                required
-                                value={formData.graduationYear}
-                                onChange={handleChange}
-                                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="2024"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                                Password
-                            </label>
-                            <div className="mt-1 relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <LockClosedIcon className="h-5 w-5 text-gray-400" />
-                                </div>
+                            <div className="relative">
+                                <LockClosedIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
                                 <input
-                                    id="password"
                                     name="password"
                                     type="password"
                                     required
                                     value={formData.password}
                                     onChange={handleChange}
-                                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                    className="pl-10 w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                                     placeholder="••••••••"
                                 />
                             </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                                Confirm Password
+                        {/* Confirm Password */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Confirm Password <span className="text-red-500">*</span>
                             </label>
-                            <div className="mt-1 relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <LockClosedIcon className="h-5 w-5 text-gray-400" />
-                                </div>
+                            <div className="relative">
+                                <LockClosedIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
                                 <input
-                                    id="confirmPassword"
                                     name="confirmPassword"
                                     type="password"
                                     required
                                     value={formData.confirmPassword}
                                     onChange={handleChange}
-                                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                    className="pl-10 w-full p-3 text-base border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                                     placeholder="••••••••"
                                 />
                             </div>
                         </div>
                     </div>
 
-                    <div>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {loading ? 'Creating account...' : 'Register'}
-                        </button>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 text-base font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all transform hover:scale-[1.02]"
+                    >
+                        {loading ? (
+                            <span className="flex items-center justify-center">
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Creating Account...
+                            </span>
+                        ) : 'Create Account'}
+                    </button>
+
+                    <div className="text-center">
+                        <p className="text-base text-gray-600 dark:text-gray-400">
+                            Already have an account?{' '}
+                            <Link to="/login" className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300">
+                                Sign in
+                            </Link>
+                        </p>
                     </div>
                 </form>
             </div>

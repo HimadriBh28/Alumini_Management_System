@@ -5,7 +5,7 @@ const config = require('../config/config');
 // Generate JWT Token
 const generateToken = (id) => {
     return jwt.sign({ id }, config.JWT_SECRET, {
-        expiresIn: config.JWT_EXPIRE
+        expiresIn: config.JWT_EXPIRE || '7d'
     });
 };
 
@@ -14,12 +14,25 @@ const generateToken = (id) => {
 // @access  Public
 const register = async (req, res) => {
     try {
+        console.log('Registration request received:', req.body);
+        
         const { name, email, password, role, graduationYear, branch } = req.body;
+
+        // Validate required fields
+        if (!name || !email || !password || !role) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'Please provide all required fields' 
+            });
+        }
 
         // Check if user exists
         const userExists = await User.findOne({ email });
         if (userExists) {
-            return res.status(400).json({ message: 'User already exists' });
+            return res.status(400).json({ 
+                success: false,
+                message: 'User already exists' 
+            });
         }
 
         // Create user
@@ -30,8 +43,8 @@ const register = async (req, res) => {
             role,
             isApproved: role === 'admin' ? true : false,
             profile: {
-                graduationYear,
-                branch
+                graduationYear: graduationYear || '',
+                branch: branch || ''
             }
         });
 
@@ -51,7 +64,11 @@ const register = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Registration error:', error);
+        res.status(500).json({ 
+            success: false,
+            message: error.message || 'Registration failed' 
+        });
     }
 };
 
@@ -65,18 +82,27 @@ const login = async (req, res) => {
         // Check for user
         const user = await User.findOne({ email }).select('+password');
         if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'Invalid credentials' 
+            });
         }
 
         // Check password
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'Invalid credentials' 
+            });
         }
 
         // Check if approved
         if (!user.isApproved && user.role !== 'admin') {
-            return res.status(401).json({ message: 'Account pending approval' });
+            return res.status(401).json({ 
+                success: false,
+                message: 'Account pending approval' 
+            });
         }
 
         // Generate token
@@ -95,7 +121,11 @@ const login = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Login error:', error);
+        res.status(500).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };
 
@@ -110,7 +140,10 @@ const getMe = async (req, res) => {
             user
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };
 

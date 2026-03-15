@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { login as apiLogin, register as apiRegister, getCurrentUser } from '../services/api';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
@@ -14,78 +15,68 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [token, setToken] = useState(localStorage.getItem('token'));
 
     useEffect(() => {
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-            setUser(JSON.parse(savedUser));
+        if (token) {
+            loadUser();
+        } else {
+            setLoading(false);
         }
-        setLoading(false);
-    }, []);
+    }, [token]);
 
-    const login = async (email, password) => {
-        setLoading(true);
+    const loadUser = async () => {
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Mock user data - in real app, this would come from backend
-            const userData = {
-                id: 1,
-                name: email.includes('alumni') ? 'John Alumni' : 'Jane Student',
-                email,
-                role: email.includes('alumni') ? 'alumni' : 'student',
-                avatar: `https://ui-avatars.com/api/?name=${email.split('@')[0]}&background=4f46e5&color=fff&bold=true`,
-                graduationYear: email.includes('alumni') ? '2020' : '2024',
-                branch: 'Computer Science',
-                company: email.includes('alumni') ? 'Google' : null,
-                designation: email.includes('alumni') ? 'Software Engineer' : null
-            };
-            
-            setUser(userData);
-            localStorage.setItem('user', JSON.stringify(userData));
-            toast.success('Login successful!');
-            return { success: true, user: userData };
+            const response = await getCurrentUser();
+            setUser(response.data.user);
         } catch (error) {
-            toast.error('Login failed. Please try again.');
-            return { success: false };
+            console.error('Error loading user:', error);
+            localStorage.removeItem('token');
+            setToken(null);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const login = async (email, password) => {
+        try {
+            const response = await apiLogin(email, password);
+            const { token, user } = response.data;
+            
+            localStorage.setItem('token', token);
+            setToken(token);
+            setUser(user);
+            
+            toast.success('Login successful!');
+            return { success: true, user };
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Login failed');
+            return { success: false, error: error.response?.data?.message };
         }
     };
 
     const register = async (userData) => {
-        setLoading(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const response = await apiRegister(userData);
+            const { token, user } = response.data;
             
-            const newUser = {
-                id: Date.now(),
-                name: userData.name,
-                email: userData.email,
-                role: userData.role,
-                avatar: `https://ui-avatars.com/api/?name=${userData.name.replace(' ', '+')}&background=4f46e5&color=fff&bold=true`,
-                graduationYear: userData.graduationYear,
-                branch: userData.branch,
-                company: userData.role === 'alumni' ? '' : null,
-                designation: userData.role === 'alumni' ? '' : null
-            };
+            localStorage.setItem('token', token);
+            setToken(token);
+            setUser(user);
             
-            setUser(newUser);
-            localStorage.setItem('user', JSON.stringify(newUser));
             toast.success('Registration successful!');
             return { success: true };
         } catch (error) {
-            toast.error('Registration failed. Please try again.');
+            toast.error(error.response?.data?.message || 'Registration failed');
             return { success: false };
-        } finally {
-            setLoading(false);
         }
     };
 
     const logout = () => {
-        setUser(null);
+        localStorage.removeItem('token');
         localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
         toast.success('Logged out successfully');
     };
 
