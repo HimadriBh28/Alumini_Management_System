@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
-// Route imports
+// Import routes from the correct path
 const authRoutes = require('../backend/routes/authRoutes');
 const userRoutes = require('../backend/routes/userRoutes');
 const jobRoutes = require('../backend/routes/jobRoutes');
@@ -21,13 +21,13 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Connect to MongoDB
+// MongoDB Connection
 const connectDB = async () => {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
-        console.log('MongoDB Connected');
+        console.log('MongoDB Connected Successfully');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        console.error('MongoDB Connection Error:', error);
     }
 };
 connectDB();
@@ -47,5 +47,9 @@ app.get('/', (req, res) => {
     res.json({ message: 'Alumni Management System API' });
 });
 
-// Export for Vercel
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
 module.exports = app;
