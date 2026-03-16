@@ -1,13 +1,14 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
-// Import routes from the correct path
-const authRoutes = require('../backend/routes/authRoutes');
-const userRoutes = require('../backend/routes/userRoutes');
-const jobRoutes = require('../backend/routes/jobRoutes');
-const eventRoutes = require('../backend/routes/eventRoutes');
+// Use absolute paths from the project root
+const authRoutes = require('./backend/routes/authRoutes');
+const userRoutes = require('./backend/routes/userRoutes');
+const jobRoutes = require('./backend/routes/jobRoutes');
+const eventRoutes = require('./backend/routes/eventRoutes');
 
 const app = express();
 
