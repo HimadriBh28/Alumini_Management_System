@@ -53,3 +53,5 @@ yarn-error.log*
 /frontend/build
 /frontend/.cache
 .vercel
+api/
+backend/
