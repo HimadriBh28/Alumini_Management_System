@@ -1,53 +1,38 @@
 const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
+
 const app = express();
 
 // Middleware
+app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Simple logging
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-    next();
-});
+// Import routes - MAKE SURE THESE PATHS ARE CORRECT
+const authRoutes = require('./routes/authRoutes');
 
-// ROOT ROUTE - This MUST work
-app.get('/', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Alumni Management System API',
-        endpoints: {
-            health: '/health',
-            api: '/api/health',
-            test: '/api/test'
-        }
-    });
-});
+// Register routes - THIS IS THE CRITICAL PART
+app.use('/api/auth', authRoutes);
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
+// Simple test routes
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'API is healthy' });
 });
 
-// Test route
 app.get('/api/test', (req, res) => {
     res.json({ message: 'Test endpoint works' });
 });
 
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({ 
-        error: 'Not Found',
-        path: req.path,
-        suggestion: 'Try /, /health, or /api/health'
-    });
-});
+// MongoDB connection (optional for testing)
+mongoose.connect('mongodb://localhost:27017/alumni_management')
+    .then(() => console.log('✅ MongoDB Connected'))
+    .catch(err => console.log('⚠️ MongoDB not connected:', err.message));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📍 Test URL: http://localhost:${PORT}/`);
+    console.log(`✅ Health: http://localhost:${PORT}/api/health`);
+    console.log(`✅ Auth routes: http://localhost:${PORT}/api/auth/register`);
 });
