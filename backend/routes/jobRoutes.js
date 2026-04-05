@@ -1,26 +1,20 @@
 const express = require('express');
-const {
-    createJob,
-    getJobs,
-    getJobById,
-    applyForJob,
-    updateApplicationStatus
-} = require('../controllers/jobController');
-const { protect, authorize } = require('../middleware/auth');
-
 const router = express.Router();
+const { createJob, getJobs, getJobById, applyForJob } = require('../controllers/jobController');
+const { protect } = require('../middleware/auth');
 
+// All routes require authentication
+router.use(protect);
+
+// Routes
 router.route('/')
-    .get(protect, getJobs)
-    .post(protect, authorize('alumni'), createJob);
+    .get(getJobs)
+    .post(createJob);
 
 router.route('/:id')
-    .get(protect, getJobById);
+    .get(getJobById);
 
 router.route('/:id/apply')
-    .post(protect, authorize('student'), applyForJob);
-
-router.route('/:jobId/applications/:applicationId')
-    .put(protect, authorize('alumni'), updateApplicationStatus);
+    .post(applyForJob);
 
 module.exports = router;
