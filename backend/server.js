@@ -267,3 +267,45 @@ app.listen(PORT, () => {
     console.log(`📍 Events: http://localhost:${PORT}/api/events`);
     console.log(`📍 Jobs: http://localhost:${PORT}/api/jobs`);
 });
+
+// ============ USER ROUTES ============
+app.get('/api/users', async (req, res) => {
+    try {
+        const { role } = req.query;
+        let query = {};
+        if (role) query.role = role;
+        
+        const users = await User.find(query).select('-password');
+        res.json({ success: true, users });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.get('/api/users/:id', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        res.json({ success: true, user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.put('/api/users/profile', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        
+        user.profile = { ...user.profile, ...req.body };
+        await user.save();
+        
+        res.json({ success: true, user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
