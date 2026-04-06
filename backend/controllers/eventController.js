@@ -1,161 +1,210 @@
 const Event = require('../models/Event');
+const User = require('../models/User');
 
-// @desc    Create event (Admin only)
-// @route   POST /api/events
-// @access  Private/Admin
 const createEvent = async (req, res) => {
     try {
         const eventData = {
             ...req.body,
             createdBy: req.user.id
         };
-
-        const event = await Event.create(eventData);
+        
+        const event = new Event(eventData);
+        await event.save();
         
         res.status(201).json({
             success: true,
+            message: 'Event created successfully',
             event
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Create event error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Get all events
-// @route   GET /api/events
-// @access  Private
 const getEvents = async (req, res) => {
     try {
         const { upcoming, eventType } = req.query;
         let query = {};
-
+        
         if (upcoming === 'true') {
             query.startDate = { $gte: new Date() };
+            query.status = 'upcoming';
         }
         if (eventType) {
             query.eventType = eventType;
         }
-
+        
         const events = await Event.find(query)
-            .populate('createdBy', 'name email')
-            .populate('registrations.user', 'name email')
-            .sort('startDate');
-
+            .populate('createdBy', 'name email profile')
+            .populate('registrations.user', 'name email profile')
+            .sort({ startDate: 1 });
+        
         res.json({
             success: true,
             count: events.length,
             events
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Get events error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Get event by ID
-// @route   GET /api/events/:id
-// @access  Private
+// Get single event
 const getEventById = async (req, res) => {
     try {
         const event = await Event.findById(req.params.id)
-            .populate('createdBy', 'name email')
+            .populate('createdBy', 'name email profile')
             .populate('registrations.user', 'name email profile');
-
+        
         if (!event) {
-            return res.status(404).json({ message: 'Event not found' });
+            return res.status(404).json({ success: false, message: 'Event not found' });
         }
-
-        res.json({
-            success: true,
-            event
-        });
+        
+        res.json({ success: true, event });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Get event error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Register for event
-// @route   POST /api/events/:id/register
-// @access  Private
+// Register for event (Alumni can register)
 const registerForEvent = async (req, res) => {
     try {
         const event = await Event.findById(req.params.id);
         
         if (!event) {
-            return res.status(404).json({ message: 'Event not found' });
+            return res.status(404).json({ success: false, message: 'Event not found' });
         }
-
+        
         // Check if already registered
         const alreadyRegistered = event.registrations.some(
             reg => reg.user.toString() === req.user.id
         );
-
+        
         if (alreadyRegistered) {
-            return res.status(400).json({ message: 'Already registered for this event' });
+            return res.status(400).json({ success: false, message: 'Already registered for this event' });
         }
-
+        
         // Check if event has reached max attendees
         if (event.maxAttendees && event.registrations.length >= event.maxAttendees) {
-            return res.status(400).json({ message: 'Event is full' });
+            return res.status(400).json({ success: false, message: 'Event is full' });
         }
-
+        
         event.registrations.push({
-            user: req.user.id
+            user: req.user.id,
+            registeredAt: new Date()
         });
-
+        
         await event.save();
-
+        
         res.json({
             success: true,
-            message: 'Successfully registered for event'
+            message: 'Successfully registered for event',
+            registrationCount: event.registrations.length
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Register for event error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Update event (Admin only)
-// @route   PUT /api/events/:id
-// @access  Private/Admin
+// Cancel registration
+const cancelRegistration = async (req, res) => {
+    try {
+        const event = await Event.findById(req.params.id);
+        
+        if (!event) {
+            return res.status(404).json({ success: false, message: 'Event not found' });
+        }
+        
+        event.registrations = event.registrations.filter(
+            reg => reg.user.toString() !== req.user.id
+        );
+        
+        await event.save();
+        
+        res.json({
+            success: true,
+            message: 'Registration cancelled successfully'
+        });
+    } catch (error) {
+        console.error('Cancel registration error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Update event (Only creator)
 const updateEvent = async (req, res) => {
     try {
-        const event = await Event.findByIdAndUpdate(
+        const event = await Event.findById(req.params.id);
+        
+        if (!event) {
+            return res.status(404).json({ success: false, message: 'Event not found' });
+        }
+        
+        if (event.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+        
+        const updatedEvent = await Event.findByIdAndUpdate(
             req.params.id,
             req.body,
             { new: true, runValidators: true }
         );
-
-        if (!event) {
-            return res.status(404).json({ message: 'Event not found' });
-        }
-
+        
         res.json({
             success: true,
-            event
+            message: 'Event updated successfully',
+            event: updatedEvent
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Update event error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Delete event (Admin only)
-// @route   DELETE /api/events/:id
-// @access  Private/Admin
+// Delete event (Only creator or admin)
 const deleteEvent = async (req, res) => {
     try {
         const event = await Event.findById(req.params.id);
-
+        
         if (!event) {
-            return res.status(404).json({ message: 'Event not found' });
+            return res.status(404).json({ success: false, message: 'Event not found' });
         }
-
+        
+        if (event.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+        
         await event.deleteOne();
-
+        
         res.json({
             success: true,
             message: 'Event deleted successfully'
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Delete event error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Get events created by user
+const getMyEvents = async (req, res) => {
+    try {
+        const events = await Event.find({ createdBy: req.user.id })
+            .populate('registrations.user', 'name email profile')
+            .sort('-createdAt');
+        
+        res.json({
+            success: true,
+            count: events.length,
+            events
+        });
+    } catch (error) {
+        console.error('Get my events error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -164,6 +213,8 @@ module.exports = {
     getEvents,
     getEventById,
     registerForEvent,
+    cancelRegistration,
     updateEvent,
-    deleteEvent
+    deleteEvent,
+    getMyEvents
 };

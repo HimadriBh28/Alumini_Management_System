@@ -3,15 +3,15 @@ const mongoose = require('mongoose');
 const eventSchema = new mongoose.Schema({
     title: {
         type: String,
-        required: [true, 'Event title is required']
+        required: true
     },
     description: {
         type: String,
-        required: [true, 'Event description is required']
+        required: true
     },
     eventType: {
         type: String,
-        enum: ['webinar', 'workshop', 'networking', 'seminar', 'meetup'],
+        enum: ['workshop', 'seminar', 'networking', 'webinar', 'meetup', 'conference'],
         required: true
     },
     startDate: {
@@ -29,6 +29,7 @@ const eventSchema = new mongoose.Schema({
     },
     meetingLink: String,
     maxAttendees: Number,
+    imageUrl: String,
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -43,9 +44,10 @@ const eventSchema = new mongoose.Schema({
             type: Date,
             default: Date.now
         },
-        attended: {
-            type: Boolean,
-            default: false
+        status: {
+            type: String,
+            enum: ['registered', 'attended', 'cancelled'],
+            default: 'registered'
         }
     }],
     status: {

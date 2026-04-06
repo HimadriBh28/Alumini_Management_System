@@ -57,13 +57,36 @@ const eventSchema = new mongoose.Schema({
     description: String,
     eventType: String,
     startDate: Date,
+    endDate: Date,
     location: String,
-    registrations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    isVirtual: Boolean,
+    meetingLink: String,
+    maxAttendees: Number,
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    registrations: [{
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        registeredAt: { type: Date, default: Date.now }
+    }],
+    status: { type: String, default: 'upcoming' },
     createdAt: { type: Date, default: Date.now }
 });
 
 const Event = mongoose.model('Event', eventSchema);
+
+// Auth Middleware
+const auth = async (req, res, next) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ success: false, message: 'No token' });
+        }
+        const decoded = jwt.verify(token, 'secretkey123');
+        req.user = decoded;
+        next();
+    } catch (error) {
+        res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+};
 
 // ============ AUTH ROUTES ============
 app.post('/api/auth/register', async (req, res) => {
@@ -94,7 +117,6 @@ app.post('/api/auth/register', async (req, res) => {
             user: { id: user._id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
-        console.error('Register error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -121,41 +143,18 @@ app.post('/api/auth/login', async (req, res) => {
             user: { id: user._id, name: user.name, email: user.email, role: user.role }
         });
     } catch (error) {
-        console.error('Login error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
-app.get('/api/auth/me', async (req, res) => {
+app.get('/api/auth/me', auth, async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ success: false, message: 'No token' });
-        }
-        
-        const decoded = jwt.verify(token, 'secretkey123');
-        const user = await User.findById(decoded.id).select('-password');
-        
+        const user = await User.findById(req.user.id).select('-password');
         res.json({ success: true, user });
     } catch (error) {
-        res.status(401).json({ success: false, message: 'Invalid token' });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
-
-// Middleware to check authentication
-const auth = async (req, res, next) => {
-    try {
-        const token = req.headers.authorization?.split(' ')[1];
-        if (!token) {
-            return res.status(401).json({ success: false, message: 'No token' });
-        }
-        const decoded = jwt.verify(token, 'secretkey123');
-        req.user = decoded;
-        next();
-    } catch (error) {
-        res.status(401).json({ success: false, message: 'Invalid token' });
-    }
-};
 
 // ============ JOB ROUTES ============
 app.get('/api/jobs', async (req, res) => {
@@ -169,7 +168,6 @@ app.get('/api/jobs', async (req, res) => {
 
 app.post('/api/jobs', auth, async (req, res) => {
     try {
-        // Check if user is alumni
         const user = await User.findById(req.user.id);
         if (user.role !== 'alumni') {
             return res.status(403).json({ success: false, message: 'Only alumni can post jobs' });
@@ -186,8 +184,21 @@ app.post('/api/jobs', auth, async (req, res) => {
 // ============ EVENT ROUTES ============
 app.get('/api/events', async (req, res) => {
     try {
-        const events = await Event.find().sort('-createdAt');
+        const events = await Event.find()
+            .populate('createdBy', 'name')
+            .populate('registrations.user', 'name')
+            .sort('-createdAt');
         res.json({ success: true, events });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post('/api/events', auth, async (req, res) => {
+    try {
+        const event = new Event({ ...req.body, createdBy: req.user.id });
+        await event.save();
+        res.status(201).json({ success: true, event });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -200,12 +211,45 @@ app.post('/api/events/:id/register', auth, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Event not found' });
         }
         
-        if (!event.registrations.includes(req.user.id)) {
-            event.registrations.push(req.user.id);
-            await event.save();
+        const alreadyRegistered = event.registrations.some(r => r.user.toString() === req.user.id);
+        if (alreadyRegistered) {
+            return res.status(400).json({ success: false, message: 'Already registered' });
         }
         
-        res.json({ success: true, message: 'Registered for event' });
+        event.registrations.push({ user: req.user.id });
+        await event.save();
+        
+        res.json({ success: true, message: 'Registered successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.delete('/api/events/:id/cancel', auth, async (req, res) => {
+    try {
+        const event = await Event.findById(req.params.id);
+        if (!event) {
+            return res.status(404).json({ success: false, message: 'Event not found' });
+        }
+        
+        event.registrations = event.registrations.filter(r => r.user.toString() !== req.user.id);
+        await event.save();
+        
+        res.json({ success: true, message: 'Registration cancelled' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ USER ROUTES ============
+app.get('/api/users', async (req, res) => {
+    try {
+        const { role } = req.query;
+        let query = {};
+        if (role) query.role = role;
+        
+        const users = await User.find(query).select('-password');
+        res.json({ success: true, users });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -220,4 +264,6 @@ const PORT = 10000;
 app.listen(PORT, () => {
     console.log(`✅ Server running on http://localhost:${PORT}`);
     console.log(`📍 Health: http://localhost:${PORT}/api/health`);
+    console.log(`📍 Events: http://localhost:${PORT}/api/events`);
+    console.log(`📍 Jobs: http://localhost:${PORT}/api/jobs`);
 });

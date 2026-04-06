@@ -1,26 +1,31 @@
 const express = require('express');
+const router = express.Router();
 const {
     createEvent,
     getEvents,
     getEventById,
     registerForEvent,
+    cancelRegistration,
     updateEvent,
-    deleteEvent
+    deleteEvent,
+    getMyEvents
 } = require('../controllers/eventController');
-const { protect, authorize } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
-const router = express.Router();
+// All routes require authentication
+router.use(protect);
 
+// Routes
 router.route('/')
-    .get(protect, getEvents)
-    .post(protect, authorize('admin'), createEvent);
+    .get(getEvents)
+    .post(createEvent);  // Students can create events
 
+router.get('/my-events', getMyEvents);
+router.post('/:id/register', registerForEvent);
+router.delete('/:id/cancel', cancelRegistration);
 router.route('/:id')
-    .get(protect, getEventById)
-    .put(protect, authorize('admin'), updateEvent)
-    .delete(protect, authorize('admin'), deleteEvent);
-
-router.route('/:id/register')
-    .post(protect, registerForEvent);
+    .get(getEventById)
+    .put(updateEvent)
+    .delete(deleteEvent);
 
 module.exports = router;
