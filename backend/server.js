@@ -9,9 +9,10 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin:[ 'http://localhost:3000','https://alumni-management-system.vercel.app']
+    origin: ['http://localhost:3000', 'https://alumni-management-system.vercel.app'],
     credentials: true
 }));
+    
 app.use(express.json());
 
 // MongoDB Connection
