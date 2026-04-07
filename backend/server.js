@@ -9,24 +9,22 @@ const app = express();
 
 // CORS configuration
 app.use(cors({
-    origin: ['http://localhost:3000', 'https://alumni-management-system.vercel.app','https://alumini-management-system.vercel.app'],
+    origin: [
+        'http://localhost:3000',
+        'https://alumni-management-system.vercel.app',
+        'https://alumini-management-system.vercel.app'
+    ],
     credentials: true
 }));
 app.use(express.json());
 
-// ============ MONGODB CONNECTION (FIXED) ============
+// ============ MONGODB CONNECTION ============
 const MONGODB_URI = process.env.MONGODB_URI;
 
 console.log('🔍 Checking MongoDB URI:', MONGODB_URI ? '✅ URI exists' : '❌ URI MISSING!');
 
 if (!MONGODB_URI) {
     console.error('❌ CRITICAL: MONGODB_URI environment variable is not set!');
-    console.error('Please add MONGODB_URI in Render Environment Variables');
-    process.exit(1);
-}
-
-if (MONGODB_URI.includes('localhost')) {
-    console.error('❌ ERROR: You are using localhost! Use MongoDB Atlas URL');
     process.exit(1);
 }
 
@@ -113,21 +111,17 @@ app.post('/api/auth/register', async (req, res) => {
         
         const { name, email, password, role, graduationYear, branch } = req.body;
         
-        // Validate required fields
         if (!name || !email || !password) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
         
-        // Check if user exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ success: false, message: 'User already exists' });
         }
         
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Create user
         const user = new User({
             name,
             email,
@@ -138,7 +132,6 @@ app.post('/api/auth/register', async (req, res) => {
         
         await user.save();
         
-        // Create token
         const token = jwt.sign(
             { id: user._id, role: user.role },
             process.env.JWT_SECRET || 'secretkey123',
@@ -268,6 +261,8 @@ app.post('/api/jobs', auth, async (req, res) => {
 });
 
 // ============ EVENT ROUTES ============
+
+// Get all events
 app.get('/api/events', async (req, res) => {
     try {
         const events = await Event.find().populate('createdBy', 'name').sort('startDate');
@@ -277,20 +272,57 @@ app.get('/api/events', async (req, res) => {
     }
 });
 
+// Create event (Students only)
+app.post('/api/events', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        
+        // Only students can create events
+        if (user.role !== 'student') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Only students can create events' 
+            });
+        }
+        
+        const event = new Event({
+            ...req.body,
+            createdBy: req.user.id,
+            registrations: []
+        });
+        
+        await event.save();
+        res.status(201).json({ success: true, event });
+    } catch (error) {
+        console.error('Create event error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Register for event (Alumni only)
 app.post('/api/events/:id/register', auth, async (req, res) => {
     try {
         const event = await Event.findById(req.params.id);
         if (!event) {
             return res.status(404).json({ success: false, message: 'Event not found' });
         }
+        
+        const user = await User.findById(req.user.id);
+        if (user.role !== 'alumni') {
+            return res.status(403).json({ success: false, message: 'Only alumni can register for events' });
+        }
+        
         const alreadyRegistered = event.registrations.some(r => r.user.toString() === req.user.id);
         if (alreadyRegistered) {
             return res.status(400).json({ success: false, message: 'Already registered' });
         }
-        event.registrations.push({ user: req.user.id });
+        
+        event.registrations.push({ user: req.user.id, registeredAt: new Date() });
         await event.save();
+        
         res.json({ success: true, message: 'Registered successfully' });
     } catch (error) {
+        console.error('Register for event error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -310,4 +342,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`📍 Health: http://localhost:${PORT}/api/health`);
     console.log(`📍 Register: http://localhost:${PORT}/api/auth/register`);
+    console.log(`📍 Events: http://localhost:${PORT}/api/events`);
+    console.log(`📍 Jobs: http://localhost:${PORT}/api/jobs`);
 });
