@@ -9,7 +9,7 @@ const app = express();
 
 // CORS configuration
 app.use(cors({
-    origin: ['http://localhost:3000', 'https://alumni-management-system.vercel.app'],
+    origin: ['http://localhost:3000', 'https://alumni-management-system.vercel.app','https://alumini-management-system.vercel.app'],
     credentials: true
 }));
 app.use(express.json());
