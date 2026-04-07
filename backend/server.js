@@ -7,60 +7,75 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
+// CORS configuration
 app.use(cors({
     origin: ['http://localhost:3000', 'https://alumni-management-system.vercel.app'],
     credentials: true
 }));
-    
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/alumni_management')
-    .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.log('❌ MongoDB Error:', err));
+// ============ MONGODB CONNECTION (FIXED) ============
+const MONGODB_URI = process.env.MONGODB_URI;
 
-// User Schema
+console.log('🔍 Checking MongoDB URI:', MONGODB_URI ? '✅ URI exists' : '❌ URI MISSING!');
+
+if (!MONGODB_URI) {
+    console.error('❌ CRITICAL: MONGODB_URI environment variable is not set!');
+    console.error('Please add MONGODB_URI in Render Environment Variables');
+    process.exit(1);
+}
+
+if (MONGODB_URI.includes('localhost')) {
+    console.error('❌ ERROR: You are using localhost! Use MongoDB Atlas URL');
+    process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('✅ MongoDB Connected Successfully to Atlas!'))
+    .catch(err => {
+        console.error('❌ MongoDB Connection Error:', err.message);
+        process.exit(1);
+    });
+
+// ============ SCHEMAS ============
 const userSchema = new mongoose.Schema({
-    name: String,
-    email: { type: String, unique: true },
-    password: String,
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
     role: { type: String, enum: ['alumni', 'student', 'admin'], default: 'student' },
     profile: {
         graduationYear: String,
         branch: String,
         company: String,
-        designation: String
+        designation: String,
+        location: String,
+        bio: String,
+        phoneNumber: String,
+        linkedinUrl: String
     },
     createdAt: { type: Date, default: Date.now }
 });
 
-const User = mongoose.model('User', userSchema);
-
-// Job Schema
 const jobSchema = new mongoose.Schema({
-    title: String,
-    company: String,
+    title: { type: String, required: true },
+    company: { type: String, required: true },
     location: String,
-    jobType: String,
-    description: String,
+    jobType: { type: String, enum: ['full-time', 'part-time', 'internship', 'contract'], default: 'full-time' },
+    description: { type: String, required: true },
     requirements: [String],
     salary: String,
     postedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdAt: { type: Date, default: Date.now }
 });
 
-const Job = mongoose.model('Job', jobSchema);
-
-// Event Schema
 const eventSchema = new mongoose.Schema({
-    title: String,
-    description: String,
-    eventType: String,
-    startDate: Date,
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    eventType: { type: String, enum: ['workshop', 'seminar', 'networking', 'webinar', 'meetup', 'conference'] },
+    startDate: { type: Date, required: true },
     endDate: Date,
     location: String,
-    isVirtual: Boolean,
+    isVirtual: { type: Boolean, default: false },
     meetingLink: String,
     maxAttendees: Number,
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -72,16 +87,18 @@ const eventSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
+const User = mongoose.model('User', userSchema);
+const Job = mongoose.model('Job', jobSchema);
 const Event = mongoose.model('Event', eventSchema);
 
-// Auth Middleware
+// ============ AUTH MIDDLEWARE ============
 const auth = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
-            return res.status(401).json({ success: false, message: 'No token' });
+            return res.status(401).json({ success: false, message: 'No token provided' });
         }
-        const decoded = jwt.verify(token, 'secretkey123');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey123');
         req.user = decoded;
         next();
     } catch (error) {
@@ -92,14 +109,25 @@ const auth = async (req, res, next) => {
 // ============ AUTH ROUTES ============
 app.post('/api/auth/register', async (req, res) => {
     try {
+        console.log('📝 Registration attempt:', req.body.email);
+        
         const { name, email, password, role, graduationYear, branch } = req.body;
         
+        // Validate required fields
+        if (!name || !email || !password) {
+            return res.status(400).json({ success: false, message: 'Please provide all required fields' });
+        }
+        
+        // Check if user exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ success: false, message: 'User already exists' });
         }
         
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Create user
         const user = new User({
             name,
             email,
@@ -110,14 +138,25 @@ app.post('/api/auth/register', async (req, res) => {
         
         await user.save();
         
-        const token = jwt.sign({ id: user._id, role: user.role }, 'secretkey123', { expiresIn: '7d' });
+        // Create token
+        const token = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET || 'secretkey123',
+            { expiresIn: '7d' }
+        );
         
         res.status(201).json({
             success: true,
             token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role }
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
         });
     } catch (error) {
+        console.error('Registration error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -136,12 +175,21 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
         
-        const token = jwt.sign({ id: user._id, role: user.role }, 'secretkey123', { expiresIn: '7d' });
+        const token = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET || 'secretkey123',
+            { expiresIn: '7d' }
+        );
         
         res.json({
             success: true,
             token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role }
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -157,125 +205,11 @@ app.get('/api/auth/me', auth, async (req, res) => {
     }
 });
 
-// ============ JOB ROUTES ============
-app.get('/api/jobs', async (req, res) => {
-    try {
-        const jobs = await Job.find().populate('postedBy', 'name').sort('-createdAt');
-        res.json({ success: true, jobs });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.post('/api/jobs', auth, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id);
-        if (user.role !== 'alumni') {
-            return res.status(403).json({ success: false, message: 'Only alumni can post jobs' });
-        }
-        
-        const job = new Job({ ...req.body, postedBy: req.user.id });
-        await job.save();
-        res.status(201).json({ success: true, job });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// ============ EVENT ROUTES ============
-app.get('/api/events', async (req, res) => {
-    try {
-        const events = await Event.find()
-            .populate('createdBy', 'name')
-            .populate('registrations.user', 'name')
-            .sort('-createdAt');
-        res.json({ success: true, events });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.post('/api/events', auth, async (req, res) => {
-    try {
-        const event = new Event({ ...req.body, createdBy: req.user.id });
-        await event.save();
-        res.status(201).json({ success: true, event });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.post('/api/events/:id/register', auth, async (req, res) => {
-    try {
-        const event = await Event.findById(req.params.id);
-        if (!event) {
-            return res.status(404).json({ success: false, message: 'Event not found' });
-        }
-        
-        const alreadyRegistered = event.registrations.some(r => r.user.toString() === req.user.id);
-        if (alreadyRegistered) {
-            return res.status(400).json({ success: false, message: 'Already registered' });
-        }
-        
-        event.registrations.push({ user: req.user.id });
-        await event.save();
-        
-        res.json({ success: true, message: 'Registered successfully' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.delete('/api/events/:id/cancel', auth, async (req, res) => {
-    try {
-        const event = await Event.findById(req.params.id);
-        if (!event) {
-            return res.status(404).json({ success: false, message: 'Event not found' });
-        }
-        
-        event.registrations = event.registrations.filter(r => r.user.toString() !== req.user.id);
-        await event.save();
-        
-        res.json({ success: true, message: 'Registration cancelled' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
 // ============ USER ROUTES ============
 app.get('/api/users', async (req, res) => {
     try {
         const { role } = req.query;
-        let query = {};
-        if (role) query.role = role;
-        
-        const users = await User.find(query).select('-password');
-        res.json({ success: true, users });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// Health check
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', message: 'API is healthy' });
-});
-
-const PORT = 10000;
-app.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-    console.log(`📍 Health: http://localhost:${PORT}/api/health`);
-    console.log(`📍 Events: http://localhost:${PORT}/api/events`);
-    console.log(`📍 Jobs: http://localhost:${PORT}/api/jobs`);
-});
-
-// ============ USER ROUTES ============
-app.get('/api/users', async (req, res) => {
-    try {
-        const { role } = req.query;
-        let query = {};
-        if (role) query.role = role;
-        
+        const query = role ? { role } : {};
         const users = await User.find(query).select('-password');
         res.json({ success: true, users });
     } catch (error) {
@@ -301,12 +235,79 @@ app.put('/api/users/profile', auth, async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
-        
         user.profile = { ...user.profile, ...req.body };
         await user.save();
-        
         res.json({ success: true, user });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
+});
+
+// ============ JOB ROUTES ============
+app.get('/api/jobs', async (req, res) => {
+    try {
+        const jobs = await Job.find().populate('postedBy', 'name').sort('-createdAt');
+        res.json({ success: true, jobs });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post('/api/jobs', auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (user.role !== 'alumni') {
+            return res.status(403).json({ success: false, message: 'Only alumni can post jobs' });
+        }
+        const job = new Job({ ...req.body, postedBy: req.user.id });
+        await job.save();
+        res.status(201).json({ success: true, job });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ EVENT ROUTES ============
+app.get('/api/events', async (req, res) => {
+    try {
+        const events = await Event.find().populate('createdBy', 'name').sort('startDate');
+        res.json({ success: true, events });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post('/api/events/:id/register', auth, async (req, res) => {
+    try {
+        const event = await Event.findById(req.params.id);
+        if (!event) {
+            return res.status(404).json({ success: false, message: 'Event not found' });
+        }
+        const alreadyRegistered = event.registrations.some(r => r.user.toString() === req.user.id);
+        if (alreadyRegistered) {
+            return res.status(400).json({ success: false, message: 'Already registered' });
+        }
+        event.registrations.push({ user: req.user.id });
+        await event.save();
+        res.json({ success: true, message: 'Registered successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ============ HEALTH CHECK ============
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'OK', message: 'API is healthy' });
+});
+
+app.get('/', (req, res) => {
+    res.json({ message: 'Alumni Management System API', endpoints: ['/api/auth', '/api/jobs', '/api/events', '/api/users'] });
+});
+
+// ============ START SERVER ============
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`📍 Health: http://localhost:${PORT}/api/health`);
+    console.log(`📍 Register: http://localhost:${PORT}/api/auth/register`);
 });
